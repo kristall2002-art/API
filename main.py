@@ -8,6 +8,8 @@ import os
 
 app = FastAPI()
 
+app.mount("/pdfs", StaticFiles(directory="pdfs"), name="pdfs")
+
 PDF_DIR = "pdfs"
 os.makedirs(PDF_DIR, exist_ok=True)
 
@@ -35,4 +37,5 @@ def generate_pdf(data: PdfRequest):
         "status": "ok",
         "pdf_url": f"/pdfs/{filename}"
     }
+
 
