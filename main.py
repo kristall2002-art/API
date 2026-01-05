@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
+from fastapi.staticfiles import StaticFiles
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 import uuid
@@ -7,7 +8,6 @@ import os
 
 app = FastAPI()
 
-# Папка для PDF
 PDF_DIR = "pdfs"
 os.makedirs(PDF_DIR, exist_ok=True)
 
@@ -35,3 +35,4 @@ def generate_pdf(data: PdfRequest):
         "status": "ok",
         "pdf_url": f"/pdfs/{filename}"
     }
+
