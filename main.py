@@ -3,6 +3,8 @@ from pydantic import BaseModel
 from fastapi.staticfiles import StaticFiles
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 import uuid
 import os
 
@@ -10,6 +12,9 @@ PDF_DIR = "pdfs"
 os.makedirs(PDF_DIR, exist_ok=True)
 
 app = FastAPI()
+pdfmetrics.registerFont(
+    TTFont("DejaVu", "DejaVuSans.ttf")
+)
 app.mount("/pdfs", StaticFiles(directory=PDF_DIR), name="pdfs")
 
 PDF_DIR = "pdfs"
@@ -30,7 +35,7 @@ def generate_pdf(data: PdfRequest):
     c = canvas.Canvas(filepath, pagesize=A4)
     width, height = A4
 
-    c.setFont("Helvetica", 14)
+    c.setFont("DejaVu", 14)
     c.drawString(50, height - 50, data.text)
 
     c.save()
@@ -39,6 +44,7 @@ def generate_pdf(data: PdfRequest):
         "status": "ok",
         "pdf_url": f"/pdfs/{filename}"
     }
+
 
 
 
