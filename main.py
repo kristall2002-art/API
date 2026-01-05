@@ -6,9 +6,11 @@ from reportlab.pdfgen import canvas
 import uuid
 import os
 
-app = FastAPI()
+PDF_DIR = "pdfs"
+os.makedirs(PDF_DIR, exist_ok=True)
 
-app.mount("/pdfs", StaticFiles(directory="pdfs"), name="pdfs")
+app = FastAPI()
+app.mount("/pdfs", StaticFiles(directory=PDF_DIR), name="pdfs")
 
 PDF_DIR = "pdfs"
 os.makedirs(PDF_DIR, exist_ok=True)
@@ -37,5 +39,6 @@ def generate_pdf(data: PdfRequest):
         "status": "ok",
         "pdf_url": f"/pdfs/{filename}"
     }
+
 
 
