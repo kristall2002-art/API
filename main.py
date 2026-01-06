@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, BackgroundTasks
 from pydantic import BaseModel
 from fastapi.staticfiles import StaticFiles
 from reportlab.lib.pagesizes import A4
@@ -7,85 +7,87 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 import uuid
 import os
-import requests
+import time
 
-# ----------------- НАСТРОЙКИ -----------------
+# ------------------ НАСТРОЙКИ ------------------
 PDF_DIR = "pdfs"
-IMG_DIR = "images"
 FONT_PATH = "DejaVuSans.ttf"
 
 os.makedirs(PDF_DIR, exist_ok=True)
-os.makedirs(IMG_DIR, exist_ok=True)
 
 app = FastAPI()
 app.mount("/pdfs", StaticFiles(directory=PDF_DIR), name="pdfs")
-app.mount("/images", StaticFiles(directory=IMG_DIR), name="images")
 
 pdfmetrics.registerFont(TTFont("DejaVu", FONT_PATH))
 
+# ------------------ ПАМЯТЬ ЗАДАЧ ------------------
+TASKS = {}  # task_id -> {status, pdf_url}
 
-# ----------------- МОДЕЛИ -----------------
-class PresentationRequest(BaseModel):
+# ------------------ МОДЕЛИ ------------------
+class StartRequest(BaseModel):
     topic: str
 
+# ------------------ ВСПОМОГАТЕЛЬНОЕ ------------------
+def generate_pdf(task_id: str, topic: str):
+    try:
+        TASKS[task_id]["status"] = "processing"
 
-# ----------------- ГЕНЕРАЦИЯ КАРТИНКИ -----------------
-def generate_image(prompt: str, filename: str):
-    """
-    🔴 ВОТ ЗДЕСЬ ПОДКЛЮЧАЕТСЯ API ГЕНЕРАЦИИ КАРТИНОК
-    """
+        # имитация тяжёлой работы (картинки / GPT / API)
+        time.sleep(5)
 
-    # ======= ПРИМЕР (Stable Diffusion / DALL·E / Midjourney API) =======
-    # response = requests.post(
-    #     "https://api.image-service.com/generate",
-    #     headers={"Authorization": "Bearer YOUR_API_KEY"},
-    #     json={"prompt": prompt}
-    # )
-    # image_bytes = response.content
+        filename = f"{task_id}.pdf"
+        filepath = os.path.join(PDF_DIR, filename)
 
-    # ======= ЗАГЛУШКА (чтобы код работал без API) =======
-    from PIL import Image, ImageDraw
-    img = Image.new("RGB", (1024, 768), color="white")
-    d = ImageDraw.Draw(img)
-    d.text((50, 50), prompt, fill=(0, 0, 0))
-    img.save(filename)
+        c = canvas.Canvas(filepath, pagesize=A4)
+        width, height = A4
 
+        slides = [
+            f"Презентация: {topic}",
+            f"Почему это важно",
+            f"Ключевые идеи",
+            f"Примеры применения",
+            f"Выводы",
+        ]
 
-# ----------------- PDF -----------------
-def create_presentation_pdf(topic: str):
-    filename = f"{uuid.uuid4()}.pdf"
-    filepath = os.path.join(PDF_DIR, filename)
+        for text in slides:
+            c.setFont("DejaVu", 20)
+            c.drawString(50, height - 100, text)
+            c.showPage()
 
-    c = canvas.Canvas(filepath, pagesize=A4)
-    width, height = A4
+        c.save()
 
-    slides = [
-        f"Введение: {topic}",
-        f"Почему это важно: {topic}",
-        f"Ключевые идеи: {topic}",
-        f"Примеры применения: {topic}",
-        f"Выводы и итоги: {topic}",
-    ]
+        TASKS[task_id]["status"] = "done"
+        TASKS[task_id]["pdf_url"] = f"/pdfs/{filename}"
 
-    for i, text in enumerate(slides):
-        img_path = os.path.join(IMG_DIR, f"{i}.png")
-        generate_image(text, img_path)
+    except Exception as e:
+        TASKS[task_id]["status"] = "error"
+        TASKS[task_id]["error"] = str(e)
 
-        c.setFont("DejaVu", 20)
-        c.drawString(50, height - 50, text)
+# ------------------ API ------------------
 
-        c.drawImage(img_path, 50, 150, width=500, preserveAspectRatio=True)
-        c.showPage()
+@app.get("/health")
+def health():
+    return {"status": "ok"}
 
-    c.save()
-    return filename
+@app.post("/start-presentation")
+def start_presentation(data: StartRequest, bg: BackgroundTasks):
+    task_id = str(uuid.uuid4())
 
-
-# ----------------- API -----------------
-@app.post("/generate-presentation")
-def generate_presentation(data: PresentationRequest):
-    pdf_file = create_presentation_pdf(data.topic)
-    return {
-        "status": "ok",
-        "pdf_url": f"/pdfs/{pdf_file}"
+    TASKS[task_id] = {
+        "status": "queued",
+        "pdf_url": None
     }
+
+    bg.add_task(generate_pdf, task_id, data.topic)
+
+    return {
+        "task_id": task_id,
+        "status": "queued"
+    }
+
+@app.get("/status/{task_id}")
+def get_status(task_id: str):
+    if task_id not in TASKS:
+        return {"status": "not_found"}
+
+    return TASKS[task_id]
